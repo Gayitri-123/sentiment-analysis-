@@ -1,0 +1,291 @@
+import re
+import pickle
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import tensorflow as tf
+import plotly.graph_objs as go
+import plotly.colors as colors
+from wordcloud import wordcloud
+from tensorflow import keras
+from keras.models import Sequential
+from tensorflow.keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
+
+from keras import layers
+from keras.models import Model
+from keras.layers import SimpleRNN,LSTM
+#from keras.layers import Input,Multiheadattention,Attention,AdditiveAttention
+from keras.layers import Embedding,Dense,Dropout,BatchNormalization
+from keras.optimizers import Adam
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix,classification_report
+fields = ['sentiment','text']
+df = pd.read_csv('/content/test - test.csv',encoding='ISO-8859-1',on_bad_lines='skip',usecols=fields)
+
+df.head(5)
+df.tail()
+df.info()
+df.isnull().sum()
+print(df.duplicated().sum())
+
+df['sentiment'] = df['sentiment'].fillna("neutral")
+df['sentiment'].value_counts()
+for i in range(10):
+    print(df['text'][i+1])
+# Preprocessing Text
+def clean(text):
+    text = re.sub(r'[^a-zA-Z\s]', '', str(text))
+    # Conver to lower
+    text = text.lower()
+    # Remove extra whitespaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+df['text'] = df['text'].apply(clean)
+for i in range(10):
+    print(df['text'][i+1])
+# Visualize Data
+cyberpunk_palette = ["#FF00FF", "#00FF00", "#0000FF"]
+template = "plotly_dark"
+# Word Length Distribution
+word_lengths = [len(word) for text in df['text'] for word in text.split()]
+word_lengths_counts = {length: word_lengths.count(length) for length in set(word_lengths)}
+
+# Sort the word lengths by count in descending order
+sorted_word_lengths = sorted(word_lengths_counts.items(), key=lambda x: x[1], reverse=True)
+
+# Create a custom colorscale with a fixed number of colors
+colorscale = colors.sample_colorscale('Viridis', len(word_lengths_counts))
+
+# Create the bar chart trace
+bar_trace = go.Bar(
+    x=[length for length, count in sorted_word_lengths],
+    y=[count for length, count in sorted_word_lengths],
+    marker=dict(
+        color=[colorscale[i] for i in range(len(sorted_word_lengths))],
+        line=dict(
+            color=cyberpunk_palette[0],
+            width=2
+        )
+    ),
+    hovertemplate='Word Length: %{x}<br>Count: %{y}<extra></extra>'
+)
+
+# Create the neon light effect trace
+light_effect_trace = go.Scatter(
+    x=[length for length, count in sorted_word_lengths],
+    y=[count * 1.05 for length, count in sorted_word_lengths],
+    mode='lines',
+    line=dict(
+        color=cyberpunk_palette[1],
+        width=5
+    ),
+    hoverinfo='skip'
+)
+
+# Create the layout
+layout = go.Layout(
+    title="Word Length Distribution",
+    xaxis=dict(
+        title="Word Length",
+        tickfont=dict(color=cyberpunk_palette[2])
+    ),
+    yaxis=dict(
+        title="Count",
+        tickfont=dict(color=cyberpunk_palette[2])
+    ),
+    plot_bgcolor="black",
+    paper_bgcolor="black",
+    font_color=cyberpunk_palette[2],
+    title_font_color=cyberpunk_palette[2],
+    title_font_size=20,
+    margin=dict(t=80, l=100, r=50, b=100)
+)
+
+
+# Create the figure and show it
+fig = go.Figure(data=[bar_trace, light_effect_trace], layout=layout)
+fig.show()
+# Sentence Length Distribution
+sentence_lengths = [len(text.split()) for text in df['text']]
+
+# Create a custom colorscale with a fixed number of colors
+colorscale = colors.sample_colorscale('Viridis', len(set(sentence_lengths)))
+
+bar_trace = go.Bar(
+    x=sorted(set(sentence_lengths)),
+    y=[sentence_lengths.count(length) for length in sorted(set(sentence_lengths))],
+    marker=dict(
+        color=[colorscale[i] for i in range(len(set(sentence_lengths)))],
+        line=dict(
+            color=cyberpunk_palette[0],
+            width=2
+        )
+    ),
+    hovertemplate='Sentence Length: %{x}<br>Count: %{y}<extra></extra>'
+)
+
+light_effect_trace = go.Scatter(
+    x=sorted(set(sentence_lengths)),
+    y=[sentence_lengths.count(length) * 1.05 for length in sorted(set(sentence_lengths))],
+    mode='lines',
+    line=dict(
+        color=cyberpunk_palette[1],
+        width=5
+    ),
+    hoverinfo='skip'
+)
+
+layout = go.Layout(
+    title="Sentence Length Distribution",
+    xaxis=dict(
+        title="Sentence Length",
+        tickfont=dict(color=cyberpunk_palette[2])
+    ),
+    yaxis=dict(
+        title="Count",
+        tickfont=dict(color=cyberpunk_palette[2])
+    ),
+    plot_bgcolor="black",
+    paper_bgcolor="black",
+    font_color=cyberpunk_palette[2],
+    title_font_color=cyberpunk_palette[2],
+    title_font_size=20,
+    margin=dict(t=80, l=100, r=50, b=100)
+)
+
+fig = go.Figure(data=[bar_trace, light_effect_trace], layout=layout)
+fig.show()
+# Word Cloud for Positive Sentiment
+positive_text = ' '.join(df[df['sentiment'] == 'positive']['text'])
+Wordcloud = WordCloud(background_color='black', width = 800, height = 400, max_words=200, colormap='Greens').generate(positive_text)
+fig = go.Figure(go.Image(z = np.dstack((wordcloud.to_array(), wordcloud.to_array(), wordcloud.to_array()))))
+fig.update_layout(
+    title = 'Word Cloud For Positive Sentiment',
+    template = template,
+    plot_bgcolor = 'black',
+    paper_bgcolor = 'black',
+    font_color = cyberpunk_palette[2],
+    title_font_color = cyberpunk_palette[2],
+    title_font_size = 20,
+    margin = dict(t = 80, l = 50, r = 50, b = 50)
+)
+fig.show()
+# Word Cloud for Negative Sentiment
+negative_text = ' '.join(df[df['sentiment'] == 'negative']['text'])
+wordcloud = WordCloud(background_color='black', width=800, height=400, max_words=200, colormap='Reds').generate(negative_text)
+fig = go.Figure(go.Image(z=np.dstack((wordcloud.to_array(), wordcloud.to_array(), wordcloud.to_array()))))
+fig.update_layout(
+    title="Word Cloud for Negative Sentiment",
+    template=template,
+    plot_bgcolor="black",
+    paper_bgcolor="black",
+    font_color=cyberpunk_palette[2],
+    title_font_color=cyberpunk_palette[2],
+    title_font_size=20,
+    margin=dict(t=80, l=50, r=50, b=50)
+)
+fig.show()
+# Word Cloud for Neutral Sentiment
+neutral_text = ' '.join(df[df['sentiment'] == 'neutral']['text'])
+wordcloud = WordCloud(background_color='black', width=800, height=400, max_words=200, colormap='Blues').generate(neutral_text)
+fig = go.Figure(go.Image(z=np.dstack((wordcloud.to_array(), wordcloud.to_array(), wordcloud.to_array()))))
+fig.update_layout(
+    title="Word Cloud for Neutral Sentiment",
+    template=template,
+    plot_bgcolor="black",
+    paper_bgcolor="black",
+    font_color=cyberpunk_palette[2],
+    title_font_color=cyberpunk_palette[2],
+    title_font_size=20,
+    margin=dict(t=80, l=50, r=50, b=50)
+)
+fig.show()
+# Tokenize Text
+tokenizer = Tokenizer()
+tokenizer.fit_on_texts(df['text'])
+sequences = tokenizer.texts_to_sequences(df['text'])
+# Padding the Sequences
+max_length = max([len(seq) for seq in sequences])
+padded_sequences = pad_sequences(sequences, maxlen = max_length, padding = 'post')
+# Prepare The Target Variable
+labels = pd.get_dummies(df['sentiment']).values
+
+xtrain,xtest,ytrain,ytest = train_test_split(padded_sequences, labels, test_size = 0.4)
+print(xtrain)
+print(ytrain)
+def create_model(model_type, vocab_size, embedding_dim, num_classes=3):
+    model = Sequential()
+    model.add(Embedding(vocab_size, embedding_dim))
+
+    if model_type == 'RNN':
+        model.add(SimpleRNN(32, return_sequences=True))
+    elif model_type == 'LSTM':
+        model.add(LSTM(32, return_sequences=True))
+    #elif model_type == 'GRU':
+        #model.add(GRU(32, return_sequences=True))
+    #elif model_type == 'BiLSTM':
+        #model.add(Bidirectional(LSTM(32, return_sequences=True)))
+    #elif model_type == 'BiGRU':
+        #model.add(Bidirectional(GRU(32, return_sequences=True)))
+    else:
+        raise ValueError("Invalid model type. Choose from 'RNN', 'LSTM'.")
+
+    model.add(BatchNormalization())
+
+    if model_type == 'RNN':
+        model.add(SimpleRNN(64))
+    elif model_type == 'LSTM':
+        model.add(LSTM(64))
+    #elif model_type == 'GRU':
+        #model.add(GRU(64))
+    #elif model_type == 'BiLSTM':
+        #model.add(Bidirectional(LSTM(64)))
+    #elif model_type == 'BiGRU':
+        #model.add(Bidirectional(GRU(64)))
+
+    model.add(BatchNormalization())
+    model.add(Dense(64, activation='relu'))
+    # model.add(Dropout(0.2)) # coba tanpa dropout
+    model.add(Dense(num_classes, activation='softmax'))
+
+    model.compile(loss='categorical_crossentropy', optimizer=Adam(), metrics=['accuracy'])
+    return model
+# model_types = ['RNN', 'LSTM', 'BiLSTM', 'GRU', 'BiGRU'] # un-comment this to try another model
+model_types = ['RNN']
+vocab_size = len(tokenizer.word_index) + 1
+embedding_dim = 128
+num_classes = 3
+
+for model_type in model_types:
+    print(f"Training {model_type} model...")
+    model = create_model(model_type, vocab_size, embedding_dim, num_classes)
+    model.fit(xtrain, ytrain, epochs=1, validation_data=(xtest, ytest)) # change epochs to number you would like to try
+    # model.save(f"{model_type}}.h5")
+
+    # loss, accuracy = model.evaluate(xtest, ytest)
+    # print("Test Accuracy:", accuracy)
+def predict_sentiment(input_text, tokenizer, model, max_length):
+    # Preprocess the input text
+    input_sequence = tokenizer.texts_to_sequences([input_text])
+    padded_input_sequence = pad_sequences(input_sequence, maxlen=max_length, padding='post')
+
+    # Get the prediction
+    prediction = model.predict(padded_input_sequence)
+
+    # Convert the prediction to sentiment label
+    sentiment_labels = ['Negative', 'Neutral', 'Positive']
+    predicted_label_index = np.argmax(prediction)
+    predicted_sentiment = sentiment_labels[predicted_label_index]
+
+    return predicted_sentiment
+# Examples sentences of each sentiment
+for sentiment in df['sentiment'].unique():
+  print(f">>>>>>>>>>>>>>>>>>> example sentences of {sentiment}")
+  rows = df[df['sentiment'] == sentiment]
+  print(rows[['text']].head(5))
+  print("\n")
+input_text = "im in va for the weekend my youngest son turns"
+predicted_sentiment = predict_sentiment(input_text, tokenizer, model, max_length)
+print("Predicted Sentiment:", predicted_sentiment)
